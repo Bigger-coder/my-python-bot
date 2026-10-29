@@ -1,5 +1,5 @@
 import os
-import requests
+import ast
 import subprocess
 import py_compile
 import threading
@@ -11,7 +11,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Cal
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TOKEN") or "توكن"
 MY_CHAT_ID = 7597527575  # Chat ID الخاص بك
 
-# مجلد مؤقت لحفظ الملفات المرسلة
 TEMP_DIR = "user_codes"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
@@ -20,7 +19,7 @@ app_web = Flask('')
 
 @app_web.route('/')
 def home():
-    return "🤖 Python Debug Bot is running 24/7 successfully!"
+    return "🤖 Local Python Analyzer Bot is running 24/7 successfully!"
 
 def run_web():
     app_web.run(host='0.0.0.0', port=7860)
@@ -31,6 +30,89 @@ def is_authorized(update: Update) -> bool:
         return False
     return update.effective_user.id == MY_CHAT_ID
 
+# ==================== جدول ربط أسماء المكاتب بأوامر الـ pip الصحيحة ====================
+PIP_MAPPING = {
+    'bs4': 'beautifulsoup4',
+    'cv2': 'opencv-python',
+    'PIL': 'Pillow',
+    'skimage': 'scikit-image',
+    'sklearn': 'scikit-learn',
+    'yaml': 'PyYAML',
+    'telegram': 'python-telegram-bot',
+    'serial': 'pyserial',
+    'Crypto': 'pycryptodome',
+    'dotenv': 'python-dotenv'
+}
+
+# قائمة المكاتب المدمجة في بايثون (لا تحتاج لتثبيت)
+BUILTIN_MODULES = {
+    'os', 'sys', 'time', 're', 'json', 'math', 'subprocess', 'threading', 
+    'socket', 'asyncio', 'collections', 'itertools', 'functools', 'datetime', 
+    'pathlib', 'urllib', 'http', 'logging', 'hashlib', 'base64', 'shutil', 
+    'tempfile', 'ast', 'py_compile'
+}
+
+def analyze_code_locally(code_content, file_path):
+    """تحليل محلي ذكي وصارم بدون أي قيود أو تدخلات خارجية"""
+    report = []
+    
+    # 1. فحص الأخطاء النحوية (Syntax Check)
+    try:
+        py_compile.compile(file_path, doraise=True)
+        syntax_status = "✅ سليمة 100% (لا توجد أخطاء نحوية تمنع التشغيل)."
+    except Exception as e:
+        syntax_status = f"❌ خطأ نحوي (SyntaxError):\n`{str(e)}`"
+
+    # 2. استخراج المكاتب عبر AST بدقة متناهية
+    detected_modules = set()
+    try:
+        tree = ast.parse(code_content)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    mod = alias.name.split('.')[0]
+                    if mod not in BUILTIN_MODULES:
+                        detected_modules.add(mod)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    mod = node.module.split('.')[0]
+                    if mod not in BUILTIN_MODULES:
+                        detected_modules.add(mod)
+    except Exception:
+        pass
+
+    # تجهيز أوامر التثبيت الدقيقة
+    pip_commands = []
+    for mod in detected_modules:
+        pkg_name = PIP_MAPPING.get(mod, mod)
+        pip_commands.append(f"pip install {pkg_name}")
+
+    pip_text = " \n".join(pip_commands) if pip_commands else "لا توجد مكاتب خارجية تتطلب تثبيتاً."
+
+    # 3. إحصائيات الكود
+    lines = code_content.splitlines()
+    total_lines = len(lines)
+    code_lines = sum(1 for l in lines if l.strip() and not l.strip().startswith('#'))
+    comment_lines = sum(1 for l in lines if l.strip().startswith('#'))
+    func_count = sum(1 for l in lines if l.strip().startswith('def '))
+    class_count = sum(1 for l in lines if l.strip().startswith('class '))
+
+    # بناء التقرير الشامل
+    result = (
+        "📊 **التقرير التحليلي الشامل لكودك:**\n\n"
+        f"🛠 **حالة البناء:** {syntax_status}\n\n"
+        f"📦 **المكاتب الخارجية المكتشفة وأوامر تثبيتها:**\n"
+        f"```bash\n{pip_text}\n```\n\n"
+        f"📈 **إحصائيات الهيكل البرمجي:**\n"
+        f"• إجمالي الأسطر: `{total_lines}`\n"
+        f"• أسطر الأكواد الفعالة: `{code_lines}`\n"
+        f"• أسطر التعليقات: `{comment_lines}`\n"
+        f"• عدد الدوال (`def`): `{func_count}`\n"
+        f"• عدد الكلاسات (`class`): `{class_count}`\n\n"
+        "💡 **ملاحظة:** تم تحليل كودك محلياً دون أي قيود أو تعديل على فكرتك الأساسية."
+    )
+    return result
+
 # ==================== الأوامر والمعالجات ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
@@ -38,12 +120,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     welcome_text = (
-        "🚀 **أهلاً بك في بوت تطوير وتصحيح كود Python!**\n\n"
-        "📁 أرسل لي أي ملف بايثون (`.py`) وسأوفر لك الأدوات التالية:\n"
-        "1️⃣ **التنسيق والتصحيح الآلي:** عبر `autopep8` و `pylint`.\n"
-        "2️⃣ **فحص الأخطاء النحوية وإحصائيات الكود.**\n"
-        "3️⃣ **دليل التطوير والهندسة البرمجية.**\n"
-        "4️⃣ **بحث GitHub الذكي.**"
+        "🚀 **أهلاً بك في محلل أكواد Python المحلي (بدون قيود وبدقة كاملة)!**\n\n"
+        "📁 أرسل لي أي ملف بايثون (`.py`) بغض النظر عن محتواه (شبكات، أدوات أمنية، بوتات، إلخ) وسأقوم بـ:\n"
+        "1️⃣ **فحص الأخطاء النحوية.**\n"
+        "2️⃣ **استخراج المكاتب وإعطاؤك أوامر `pip install` الدقيقة.**\n"
+        "3️⃣ **حفظ فكرة الكود الأصلية 100% دون أي تخريب.**"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -64,15 +145,13 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['file_name'] = doc.file_name
 
     keyboard = [
-        [InlineKeyboardButton("🛠 تصحيح وتنسيق الكود (Fix & Lint)", callback_data="fix_code")],
-        [InlineKeyboardButton("📊 تحليل الإحصائيات وفحص الأخطاء", callback_data="check_syntax")],
-        [InlineKeyboardButton("🚀 دليل التطوير والهندسة البرمجية", callback_data="enhance_code")],
-        [InlineKeyboardButton("🔍 البحث في GitHub عن مكتبات ذات صلة", callback_data="search_github")]
+        [InlineKeyboardButton("📊 تحليل الكود وإظهار أوامر التثبيت", callback_data="analyze_local")],
+        [InlineKeyboardButton("🛠 تظبيط وتنسيق الكود (Autopep8)", callback_data="format_code")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        f"📥 **تم استلام الملف بنجاح:** `{doc.file_name}`\nاختر العملية التي تريد تنفيذها:",
+        f"📥 **تم استلام الملف بنجاح:** `{doc.file_name}`\nاختر العملية المطلوبة:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -85,118 +164,39 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_name = context.user_data.get('file_name', 'script.py')
 
     if not file_path or not os.path.exists(file_path):
-        await query.edit_message_text("❌ لم يتم العثور على الملف أو انتهت صلاحيته. يرجى إرساله من جديد.")
+        await query.edit_message_text("❌ انتهت صلاحية الملف، يرجى إرساله من جديد.")
         return
 
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         code_content = f.read()
 
-    # 1️⃣ خيار تصحيح وتنسيق الكود
-    if query.data == "fix_code":
-        await query.edit_message_text("⏳ جاري إعادة تنسيق الكود وفحصه...")
+    if query.data == "analyze_local":
+        await query.edit_message_text("⏳ جاري تحليل الكود واستخراج المكاتب محلياً...")
+        report = analyze_code_locally(code_content, file_path)
+        await query.message.reply_text(report, parse_mode="Markdown")
 
-        # تصليح التنسيق عبر autopep8
+    elif query.data == "format_code":
+        await query.edit_message_text("⏳ جاري إعادة تنسيق وتتظبيط الكود...")
+        # تنسيق آلي نظيف عبر autopep8 دون تغيير المنطق
         subprocess.run(["autopep8", "--in-place", "--aggressive", "--aggressive", file_path])
-
-        # فحص الأخطاء عبر pylint (قص التقرير ليناسب حد تليجرام 1024 حرف للـ caption)
-        pylint_res = subprocess.run(["pylint", file_path], capture_output=True, text=True)
-        raw_report = pylint_res.stdout if pylint_res.stdout else "الكود ممتاز ولا توجد ملاحظات."
-        report = raw_report[:600] if len(raw_report) > 600 else raw_report
-
+        
         with open(file_path, 'rb') as f:
             await query.message.reply_document(
                 document=f,
-                filename=f"fixed_{file_name}",
-                caption=f"✅ **تم التصحيح بنجاح!**\n\n📋 **تقرير الأخطاء المختصر:**\n```\n{report}\n```",
+                filename=f"clean_{file_name}",
+                caption="✅ **تم تنسيق الكود وترتيبه بنجاح مع الحفاظ على فكرته الأصلية تماماً!**",
                 parse_mode="Markdown"
             )
 
-    # 2️⃣ خيار تحليل الإحصائيات وفحص الأخطاء النحوية
-    elif query.data == "check_syntax":
-        await query.edit_message_text("⏳ جاري تحليل الكود واستخراج الإحصائيات...")
-
-        try:
-            py_compile.compile(file_path, doraise=True)
-            syntax_status = "✅ سليمة 100% (لا توجد أخطاء نحوية)."
-        except Exception as e:
-            syntax_status = f"❌ توجد مشكلة نحوية:\n`{str(e)}`"
-
-        lines = code_content.splitlines()
-        total_lines = len(lines)
-        code_lines = sum(1 for l in lines if l.strip() and not l.strip().startswith('#'))
-        comment_lines = sum(1 for l in lines if l.strip().startswith('#'))
-        func_count = sum(1 for l in lines if l.strip().startswith('def '))
-        class_count = sum(1 for l in lines if l.strip().startswith('class '))
-
-        stats_text = (
-            "📊 **إحصائيات وفحص الكود البرمجي:**\n\n"
-            f"• **حالة البناء النحوي:** {syntax_status}\n"
-            f"• **إجمالي الأسطر:** `{total_lines}`\n"
-            f"• **أسطر الأكواد الفعالة:** `{code_lines}`\n"
-            f"• **أسطر التعليقات:** `{comment_lines}`\n"
-            f"• **عدد الدوال (`def`):** `{func_count}`\n"
-            f"• **عدد الكلاسات (`class`):** `{class_count}`"
-        )
-        await query.message.reply_text(stats_text, parse_mode="Markdown")
-
-    # 3️⃣ خيار دليل التطوير والهندسة البرمجية
-    elif query.data == "enhance_code":
-        await query.edit_message_text("⏳ جاري تجهيز دليل هندسة وتطوير الكود...")
-
-        imports = [line.strip() for line in code_content.splitlines() if line.startswith(('import ', 'from '))]
-        imports_list = "\n".join(imports) if imports else "لا توجد مكاتب خارجية مستوردة."
-
-        instructions = (
-            "🚀 **دليل هندسة وتطوير الكود:**\n\n"
-            "📌 **المكاتب المكتشفة:**\n"
-            f"```python\n{imports_list}\n```\n\n"
-            "💡 **توصيات لتحسين الأداء:**\n"
-            "1. **معالجة الاستثناءات:** استخدام `try...except` للعمليات الحساسة.\n"
-            "2. **التوثيق:** إضافة وصف (`Docstrings`) تحت الدوال لتسهيل القراءة."
-        )
-        await query.message.reply_text(instructions, parse_mode="Markdown")
-
-    # 4️⃣ خيار البحث في GitHub
-    elif query.data == "search_github":
-        await query.edit_message_text("🔍 جاري البحث في مستودعات GitHub...")
-
-        keywords = "python"
-        for line in code_content.splitlines():
-            if line.startswith("import ") or line.startswith("from "):
-                parts = line.split()
-                if len(parts) > 1 and parts[1] not in ['os', 'sys', 'time', 're', 'json', 'math']:
-                    keywords = parts[1].split('.')[0]
-                    break
-
-        url = f"https://api.github.com/search/repositories?q={keywords}+language:python&sort=stars&order=desc"
-        headers = {"User-Agent": "Python-Telegram-Bot"}
-        response = requests.get(url, headers=headers)
-
-        if response.status_code == 200:
-            data = response.json()
-            items = data.get('items', [])[:3]
-
-            res_text = f"🔎 **أبرز مشاريع GitHub المرتبطة بـ (`{keywords}`):**\n\n"
-            for item in items:
-                res_text += f"⭐ **[{item['name']}]({item['html_url']})**\n"
-                res_text += f"📝 {item['description'] or 'بدون وصف'}\n\n"
-        else:
-            res_text = "❌ عذراً، تعذر الوصول إلى بحث GitHub حالياً."
-
-        await query.message.reply_text(res_text, parse_mode="Markdown", disable_web_page_preview=True)
-
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الأخطاء العام لمنع توقف البوت"""
-    print(f"Update {update} caused error {context.error}")
+    print(f"Error: {context.error}")
 
 # ==================== التشغيل الرئيسي ====================
 if __name__ == '__main__':
-    # 1. تشغيل سيرفر الويب الخلفي
     t = threading.Thread(target=run_web)
     t.daemon = True
     t.start()
 
-    # 2. تشغيل بوت تليجرام
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -204,5 +204,5 @@ if __name__ == '__main__':
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_error_handler(error_handler)
 
-    print("⚡ البوت المطور يعمل بنجاح ومحمي بالكامل...")
+    print("⚡ البوت المحلي المطور يعمل بنجاح...")
     app.run_polling()
