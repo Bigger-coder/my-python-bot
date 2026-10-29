@@ -148,13 +148,34 @@ def execute_safe_code(file_path):
     except Exception as e:
         return f"❌ خطأ غير متوقع أثناء تشغيل الكود: `{str(e)}`"
 
+def auto_fix_and_clean_code(file_path):
+    """إعادة كتابة وتصحيح الكود برمجياً بدون AI لحماية موارد الجهاز"""
+    try:
+        # 1. إزالة المكاتب الوهمية وغير المستخدمة تلقائياً
+        subprocess.run(["autoflake", "--in-place", "--remove-all-unused-imports", file_path], check=True)
+        
+        # 2. إعادة هيكلة المنطق وتبسيط الأكواد المعقدة هندسياً (إذا كانت متوفرة)
+        try:
+            subprocess.run(["pyrefact", "--safe", file_path], check=True)
+        except Exception:
+            pass  # تخطي إذا لم تكن مدعومة بالكامل بالبيئة
+        
+        # 3. تنسيق الكود بالشكل القياسي النهائي
+        subprocess.run(["autopep8", "--in-place", "--aggressive", file_path], check=True)
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            fixed_code = f.read()
+        return fixed_code
+    except Exception as e:
+        return f"❌ فشل التصحيح الآلي: {str(e)}"
+
 # ==================== معالجات أوامر البوت ====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update): return
     welcome_text = (
-        "🚀 **مرحباً بك في أداة التدقيق الصادقة والتنسيق الآلي!**\n\n"
-        "قم بإرسال أي ملف بايثون (`.py`) وسأقوم بتدقيقه، البحث عن فكرته في غيت هب، تشغيله، أو إعادة كتابة وتنسيق الكود آلياً دون أي ذكاء اصطناعي مزيف."
+        "🚀 **مرحباً بك في أداة التدقيق الصادقة والتصحيح الآلي المتطور!**\n\n"
+        "قم بإرسال أي ملف بايثون (`.py`) وسأقوم بتدقيقه، البحث عن فكرته، تشغيله، أو إعادة كتابته وتصحيحه هندسياً آلياً بدون أي ذكاء اصطناعي مزيف."
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -177,7 +198,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📊 تدقيق شجرة الكود وكشف الـ Fake", callback_data="static_audit")],
         [InlineKeyboardButton("🔍 ابحث في GitHub عن نفس الفكرة", callback_data="gh_search")],
         [InlineKeyboardButton("⚙️ تشغيل الكود الفعلي برمجياً", callback_data="run_code")],
-        [InlineKeyboardButton("🛠️ إعادة تنسيق الكود وإصلاح بنيته (Autopep8)", callback_data="format_code")]
+        [InlineKeyboardButton("🛠️ صلح كودي وأعطني النسخة المحدثة", callback_data="fix_code")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -191,7 +212,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     file_path = context.user_data.get('current_file')
-    file_name = context.user_data.get('file_name', 'script.py')
+    file_name = context.user_data.get('file_name', 'fixed_script.py')
 
     if not file_path or not os.path.exists(file_path):
         await query.edit_message_text("❌ انتهت صلاحية الجلسة أو تم مسح الملف المؤقت.")
@@ -203,28 +224,31 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "static_audit":
         report = analyze_code_statically(code_content, file_path)
         await query.message.reply_text(report, parse_mode="Markdown")
-    
+        
     elif query.data == "gh_search":
         gh_results = search_github_repositories(code_content)
         await query.message.reply_text(gh_results, parse_mode="Markdown")
-    
-    elif query.data == "run_code":
-        await query.message.reply_text("⚙️ جاري محاولة تشغيل الكود في بيئة البوت الحالية...")
-        run_results = execute_safe_code(file_path)
-        await query.message.reply_text(run_results, parse_mode="Markdown")
-    
-    elif query.data == "format_code":
-        await query.message.reply_text("🛠️ جاري إعادة تنسيق وترتيب الكود هندسياً وإصلاح بنيته...")
-        # استخدام autopep8 لإعادة كتابة الكود وتنسيقه آلياً
-        subprocess.run(["autopep8", "--in-place", "--aggressive", "--aggressive", file_path])
         
-        with open(file_path, 'rb') as f:
-            await query.message.reply_document(
-                document=f,
-                filename=f"clean_{file_name}",
-                caption="✅ **تم إعادة تنسيق وترتيب الكود هندسياً بنجاح دون أي ذكاء اصطناعي أو هبد!**",
-                parse_mode="Markdown"
-            )
+    elif query.data == "run_code":
+        check_report = analyze_code_statically(code_content, file_path)
+        if "⚠️" in check_report:
+            await query.message.reply_text("⛔ تم حظر التشغيل لأن الكود مشبوه (Exploit/Fake) ويشكل خطراً على سيرفرك.")
+        else:
+            await query.message.reply_text("⚙️ جاري محاولة تشغيل الكود...")
+            run_results = execute_safe_code(file_path)
+            await query.message.reply_text(run_results, parse_mode="Markdown")
+            
+    elif query.data == "fix_code":
+        await query.message.reply_text("🛠️ جاري تصحيح الكود هندسياً وإعادة صياغته بدون AI...")
+        fixed_output = auto_fix_and_clean_code(file_path)
+        
+        # حفظ النسخة الجديدة وإرسالها للمستخدم كملف جاهز
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(fixed_output)
+            
+        await query.message.reply_text("✅ **تم تصحيح الكود وتحديثه بنجاح! إليك الملف المحدث:**", parse_mode="Markdown")
+        with open(file_path, 'rb') as document:
+            await context.bot.send_document(chat_id=MY_CHAT_ID, document=document, filename=f"Fixed_{file_name}")
 
 # ==================== تشغيل التطبيق المستمر ====================
 if __name__ == '__main__':
@@ -234,5 +258,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(CallbackQueryHandler(button_callback))
     
-    print("🤖 البوت يعمل الآن بكفاءة وبشكل هندسي بحت...")
+    print("🤖 البوت الهندسي المتقدم والمتكامل يعمل بنجاح...")
     app.run_polling()
