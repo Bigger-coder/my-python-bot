@@ -1,0 +1,5 @@
+python-telegram-bot==20.7
+autopep8
+pylint
+requests
+flask
