@@ -8,7 +8,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 # ==================== الإعدادات الأساسية ====================
-# يدعم القراءة التلقائية من استضافات السيرفر أو وضعه يدوياً
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TOKEN") or "توكن"
 MY_CHAT_ID = 7597527575  # Chat ID الخاص بك
 
@@ -28,8 +27,9 @@ def run_web():
 
 # ==================== الحماية (البوت خاص بك فقط) ====================
 def is_authorized(update: Update) -> bool:
-    user_id = update.effective_user.id
-    return user_id == MY_CHAT_ID
+    if not update.effective_user:
+        return False
+    return update.effective_user.id == MY_CHAT_ID
 
 # ==================== الأوامر والمعالجات ====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -38,12 +38,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     welcome_text = (
-        "🚀 **أهلاً بك في بوت تطوير وتصحيح كود Python المطور!**\n\n"
+        "🚀 **أهلاً بك في بوت تطوير وتصحيح كود Python!**\n\n"
         "📁 أرسل لي أي ملف بايثون (`.py`) وسأوفر لك الأدوات التالية:\n"
         "1️⃣ **التنسيق والتصحيح الآلي:** عبر `autopep8` و `pylint`.\n"
-        "2️⃣ **فحص الأخطاء النحوية وإحصائيات الكود:** معرفة الأسطر والدوال.\n"
-        "3️⃣ **دليل التطوير والهندسة البرمجية:** استخراج المكاتب واقتراحات التحسين.\n"
-        "4️⃣ **بحث GitHub الذكي:** جلب مستودعات ومكتبات مرتبطة بكودك."
+        "2️⃣ **فحص الأخطاء النحوية وإحصائيات الكود.**\n"
+        "3️⃣ **دليل التطوير والهندسة البرمجية.**\n"
+        "4️⃣ **بحث GitHub الذكي.**"
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -52,11 +52,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     doc = update.message.document
-    if not doc.file_name.endswith('.py'):
+    if not doc or not doc.file_name or not doc.file_name.endswith('.py'):
         await update.message.reply_text("❌ يرجى إرسال ملف بصيغة `.py` فقط.")
         return
 
-    # حفظ الملف مؤقتًا
     file = await doc.get_file()
     file_path = os.path.join(TEMP_DIR, doc.file_name)
     await file.download_to_drive(file_path)
@@ -64,7 +63,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['current_file'] = file_path
     context.user_data['file_name'] = doc.file_name
 
-    # أزرار تفاعلية متقدمة
     keyboard = [
         [InlineKeyboardButton("🛠 تصحيح وتنسيق الكود (Fix & Lint)", callback_data="fix_code")],
         [InlineKeyboardButton("📊 تحليل الإحصائيات وفحص الأخطاء", callback_data="check_syntax")],
@@ -100,15 +98,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # تصليح التنسيق عبر autopep8
         subprocess.run(["autopep8", "--in-place", "--aggressive", "--aggressive", file_path])
 
-        # فحص الأخطاء عبر pylint
+        # فحص الأخطاء عبر pylint (قص التقرير ليناسب حد تليجرام 1024 حرف للـ caption)
         pylint_res = subprocess.run(["pylint", file_path], capture_output=True, text=True)
-        report = pylint_res.stdout[:1200] if pylint_res.stdout else "الكود ممتاز ولا توجد ملاحظات."
+        raw_report = pylint_res.stdout if pylint_res.stdout else "الكود ممتاز ولا توجد ملاحظات."
+        report = raw_report[:600] if len(raw_report) > 600 else raw_report
 
         with open(file_path, 'rb') as f:
             await query.message.reply_document(
                 document=f,
                 filename=f"fixed_{file_name}",
-                caption=f"✅ **تم تصحيح وتنسيق الكود بنجاح!**\n\n📋 **تقرير الأخطاء:**\n```\n{report}\n```",
+                caption=f"✅ **تم التصحيح بنجاح!**\n\n📋 **تقرير الأخطاء المختصر:**\n```\n{report}\n```",
                 parse_mode="Markdown"
             )
 
@@ -116,15 +115,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "check_syntax":
         await query.edit_message_text("⏳ جاري تحليل الكود واستخراج الإحصائيات...")
 
-        # فحص وجود أخطاء نحوية (Syntax Error)
-        syntax_error = None
         try:
             py_compile.compile(file_path, doraise=True)
             syntax_status = "✅ سليمة 100% (لا توجد أخطاء نحوية)."
         except Exception as e:
             syntax_status = f"❌ توجد مشكلة نحوية:\n`{str(e)}`"
 
-        # إحصائيات بسيطة
         lines = code_content.splitlines()
         total_lines = len(lines)
         code_lines = sum(1 for l in lines if l.strip() and not l.strip().startswith('#'))
@@ -154,10 +150,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🚀 **دليل هندسة وتطوير الكود:**\n\n"
             "📌 **المكاتب المكتشفة:**\n"
             f"```python\n{imports_list}\n```\n\n"
-            "💡 **توصيات لتحسين الأداء (Static Best Practices):**\n"
-            "1. **معالجة الاستثناءات:** احرص على استخدام `try...except` داخل الدوال الحساسة لطلبات الشبكة أو الملفات.\n"
-            "2. **البرمجة غير المتزامنة:** استعمل `async/await` في المهام التي تعتمد على الإنترنت لرفع السرعة.\n"
-            "3. **التوثيق (Docstrings):** أضف وصفاً مختصراً تحت كل دالة (`def`) لتسهيل صيانتها مستقبلاً."
+            "💡 **توصيات لتحسين الأداء:**\n"
+            "1. **معالجة الاستثناءات:** استخدام `try...except` للعمليات الحساسة.\n"
+            "2. **التوثيق:** إضافة وصف (`Docstrings`) تحت الدوال لتسهيل القراءة."
         )
         await query.message.reply_text(instructions, parse_mode="Markdown")
 
@@ -188,11 +183,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             res_text = "❌ عذراً، تعذر الوصول إلى بحث GitHub حالياً."
 
-        await query.message.reply_text(res_text, parse_nomarkdown=True, disable_web_page_preview=True)
+        await query.message.reply_text(res_text, parse_mode="Markdown", disable_web_page_preview=True)
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """معالج الأخطاء العام لمنع توقف البوت"""
+    print(f"Update {update} caused error {context.error}")
 
 # ==================== التشغيل الرئيسي ====================
 if __name__ == '__main__':
-    # 1. تشغيل سيرفر الويب في خلفية مستقلة للحفاظ على استمرارية الاستضافة 24/7
+    # 1. تشغيل سيرفر الويب الخلفي
     t = threading.Thread(target=run_web)
     t.daemon = True
     t.start()
@@ -203,6 +202,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(CallbackQueryHandler(button_callback))
+    app.add_error_handler(error_handler)
 
     print("⚡ البوت المطور يعمل بنجاح ومحمي بالكامل...")
     app.run_polling()
