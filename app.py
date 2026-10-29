@@ -34,10 +34,10 @@ BUILTIN_MODULES = {
     'tempfile', 'ast', 'py_compile'
 }
 
-# ==================== العمليات الهندسية المتقدمة والمحدثة ====================
+# ==================== العمليات الهندسية المتقدمة ====================
 
 def analyze_code_statically(code_content, file_path):
-    """تحليل هندسي مطور - يكشف حقن الشبكات، التلاعب بـ السيرفرات، والأكواد المشبوهة بدون AI"""
+    """تحليل هندسي مطور - يكشف حقن الشبكات والأكواد المشبوهة بدون AI"""
     try:
         py_compile.compile(file_path, doraise=True)
         syntax_status = "✅ سليمة نحوياً 100% (Syntax OK)."
@@ -47,11 +47,10 @@ def analyze_code_statically(code_content, file_path):
     detected_modules = set()
     suspicious_details = []
     
-    # كشف السلوكيات المشبوهة أو الأكواد المزيفة بناءً على توقيعات المكتبات
     dangerous_signatures = {
-        'scapy': '⚠️ الكود يتعامل مع حزم الشبكة الخام (Sniffing/Injection) على مستوى منخفض.',
+        'scapy': '⚠️ الكود يتعامل مع حزم الشبكة الخام (Sniffing/Injection).',
         'send(': '⚠️ محاولة إرسال حزم بيانات مباشرة إلى شبكة أو موقع خارجي.',
-        'style': '⚠️ الكود يقوم بالتلاعب والتعديل على واجهات مواقع أخرى (قد يكون سكربت تخريبي أو Fake).'
+        'style': '⚠️ الكود يقوم بالتلاعب والتعديل على واجهات مواقع أخرى (قد يكون Fake).'
     }
 
     try:
@@ -68,7 +67,6 @@ def analyze_code_statically(code_content, file_path):
     except Exception:
         pass
 
-    # فحص الكلمات الدلالية والسلوكية داخل النص
     for sig, alert in dangerous_signatures.items():
         if sig in code_content:
             suspicious_details.append(alert)
@@ -95,7 +93,7 @@ def analyze_code_statically(code_content, file_path):
     return report
 
 def search_github_repositories(code_content):
-    """البحث الذكي: استخراج فكرة الكود من الدوال أو المكاتب المستوردة لضمان دقة البحث"""
+    """البحث الذكي في غيت هب بالاعتماد على المكاتب المستوردة أو الدوال"""
     keywords = []
     try:
         tree = ast.parse(code_content)
@@ -114,7 +112,6 @@ def search_github_repositories(code_content):
     except Exception:
         pass
     
-    # تصحيح دقيق لرابط الـ API الخاص بغيت هب لضمان نجاح البحث وعدم توقفه
     query = "+".join(keywords[:2]) if keywords else "packet+injection"
     url = f"https://api.github.com/search/repositories?q={query}+language:python&sort=stars&order=desc"
     headers = {"User-Agent": "Python-Code-Auditor"}
@@ -156,8 +153,8 @@ def execute_safe_code(file_path):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update): return
     welcome_text = (
-        "🚀 **مرحباً بك في أداة التدقيق الصادقة والتشغيل البرمجي المعزول!**\n\n"
-        "قم بإرسال أي ملف بايثون (`.py`) وسأقوم بتدقيقه، البحث عن فكرته في غيت هب، أو تشغيله برمجياً دون أي تدخل أو فلسفة من الذكاء الاصطناعي."
+        "🚀 **مرحباً بك في أداة التدقيق الصادقة والتنسيق الآلي!**\n\n"
+        "قم بإرسال أي ملف بايثون (`.py`) وسأقوم بتدقيقه، البحث عن فكرته في غيت هب، تشغيله، أو إعادة كتابة وتنسيق الكود آلياً دون أي ذكاء اصطناعي مزيف."
     )
     await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
@@ -179,12 +176,13 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📊 تدقيق شجرة الكود وكشف الـ Fake", callback_data="static_audit")],
         [InlineKeyboardButton("🔍 ابحث في GitHub عن نفس الفكرة", callback_data="gh_search")],
-        [InlineKeyboardButton("⚙️ تشغيل الكود الفعلي برمجياً ورؤية النتيجة", callback_data="run_code")]
+        [InlineKeyboardButton("⚙️ تشغيل الكود الفعلي برمجياً", callback_data="run_code")],
+        [InlineKeyboardButton("🛠️ إعادة تنسيق الكود وإصلاح بنيته (Autopep8)", callback_data="format_code")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        f"📥 **تم استلام مستند الكود:** `{doc.file_name}`\nاختر الإجراء الهندسي المطلق لحل كودك:",
+        f"📥 **تم استلام مستند الكود:** `{doc.file_name}`\nاختر الإجراء الهندسي المطلوب:",
         reply_markup=reply_markup, parse_mode="Markdown"
     )
 
@@ -193,6 +191,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     file_path = context.user_data.get('current_file')
+    file_name = context.user_data.get('file_name', 'script.py')
+
     if not file_path or not os.path.exists(file_path):
         await query.edit_message_text("❌ انتهت صلاحية الجلسة أو تم مسح الملف المؤقت.")
         return
@@ -203,13 +203,28 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "static_audit":
         report = analyze_code_statically(code_content, file_path)
         await query.message.reply_text(report, parse_mode="Markdown")
+    
     elif query.data == "gh_search":
         gh_results = search_github_repositories(code_content)
         await query.message.reply_text(gh_results, parse_mode="Markdown")
+    
     elif query.data == "run_code":
-        await query.message.reply_text("⚙️ جاري محاولة تشغيل الكود في بيئة البوت الحالية وقراءة النتائج...")
+        await query.message.reply_text("⚙️ جاري محاولة تشغيل الكود في بيئة البوت الحالية...")
         run_results = execute_safe_code(file_path)
         await query.message.reply_text(run_results, parse_mode="Markdown")
+    
+    elif query.data == "format_code":
+        await query.message.reply_text("🛠️ جاري إعادة تنسيق وترتيب الكود هندسياً وإصلاح بنيته...")
+        # استخدام autopep8 لإعادة كتابة الكود وتنسيقه آلياً
+        subprocess.run(["autopep8", "--in-place", "--aggressive", "--aggressive", file_path])
+        
+        with open(file_path, 'rb') as f:
+            await query.message.reply_document(
+                document=f,
+                filename=f"clean_{file_name}",
+                caption="✅ **تم إعادة تنسيق وترتيب الكود هندسياً بنجاح دون أي ذكاء اصطناعي أو هبد!**",
+                parse_mode="Markdown"
+            )
 
 # ==================== تشغيل التطبيق المستمر ====================
 if __name__ == '__main__':
