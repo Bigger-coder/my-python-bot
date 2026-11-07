@@ -117,23 +117,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         code_content = f.read()
 
-if query.data == "ai_deep_fix":
+    if query.data == "ai_deep_fix":
         status_msg = await query.message.reply_text("🧠 **جاري استدعاء عقل GPT-OSS 120B المظلم... قد يستغرق التفكير عدة ثوانٍ** ⏳🔥", parse_mode="Markdown")
         
         prompt = "قم بتحليل هذا الكود بعمق، اكشف أي أكواد وهمية أو مزيفة (Fake Logic)، وأعد كتابته وتطويره ليصبح كوداً حقيقياً، نظيفاً، وفعالاً 100% مع الحفاظ على الفكرة الأساسية."
         ai_response = ask_groq_brain(prompt, code_content)
         
-        # حماية ضد طول الرسائل في التليجرام
-        if len(ai_response) > 4000:
-            for i in range(0, len(ai_response), 4000):
-                await query.message.reply_text(ai_response[i:i+4000], parse_mode="Markdown")
-        else:
-            await query.message.reply_text(ai_response, parse_mode="Markdown")
-        
-        prompt = "قم بتحليل هذا الكود بعمق، اكشف أي أكواد وهمية أو مزيفة (Fake Logic)، وأعد كتابته وتطويره ليصبح كوداً حقيقياً، نظيفاً، وفعالاً 100% مع الحفاظ على الفكرة الأساسية."
-        ai_response = ask_groq_brain(prompt, code_content)
-        
-        # إرسال النتيجة بقطع طويلة إذا لزم الأمر
         if len(ai_response) > 4000:
             for i in range(0, len(ai_response), 4000):
                 await query.message.reply_text(ai_response[i:i+4000], parse_mode="Markdown")
