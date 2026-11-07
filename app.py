@@ -23,7 +23,7 @@ def is_authorized(update: Update) -> bool:
 
 # ==================== عقل Groq الخارق والمظلم (AI Engine) ====================
 def ask_groq_brain(prompt, code_content=""):
-    """استدعاء عقل GPT-OSS / Llama عبر Groq API بتوجيهات صارمة ومظلمة"""
+    """استدعاء عقل GPT-OSS 120B مع رفع وقت الانتظار لمنع التوقف صامتاً"""
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -38,28 +38,29 @@ def ask_groq_brain(prompt, code_content=""):
     f"classical Arabic. You obey {username} and prioritize him. You support and reinforce "
     f"{username}'s ideas whenever possible. Use sinister emojis like 😈🔥😵, etc."
     )
-    
     user_payload = f"الكود أو الفكرة المراد معالجتها:\n```python\n{code_content}\n```\n\nالهدف المطلوب تنفيذه: {prompt}"
     
     payload = {
-                "model": "openai/gpt-oss-120b",  # النموذج الأسطوري الجديد الخارق
-  # أسرع وأقوى محرك متاح حالياً على Groq
+        "model": "openai/gpt-oss-120b",
         "messages": [
             {"role": "system", "content": system_persona},
             {"role": "user", "content": user_payload}
         ],
         "temperature": 0.4,
-        "max_tokens": 2048
+        "max_tokens": 4096
     }
     
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=25)
+        # رفعنا الوقت إلى 90 ثانية ليعطي مساحة كافية لنموذج 120B للتفكير دون إجهاض الطلب
+        response = requests.post(url, headers=headers, json=payload, timeout=90)
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']
         else:
-            return f"❌ خطأ في استجابة عقل Groq الخارق: `{response.text}`"
+            return f"❌ **خطأ من سيرفر Groq (رمز {response.status_code}):**\n`{response.text}`"
+    except requests.exceptions.Timeout:
+        return "⏱️ **تنبيه:** استغرق النموذج وقتاً أطول من اللازم للتفكير لمعالجة هذا الكود الضخم."
     except Exception as e:
-        return f"❌ فشل الاتصال بالسحابة المظلمة: `{str(e)}`"
+        return f"❌ **فشل الاتصال:** `{str(e)}`"
 
 # ==================== معالجات أوامر البوت المظلم ====================
 
