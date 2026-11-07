@@ -42,7 +42,8 @@ def ask_groq_brain(prompt, code_content=""):
     user_payload = f"الكود أو الفكرة المراد معالجتها:\n```python\n{code_content}\n```\n\nالهدف المطلوب تنفيذه: {prompt}"
     
     payload = {
-        "model": "llama-3.3-70b-versatile",  # أسرع وأقوى محرك متاح حالياً على Groq
+                "model": "openai/gpt-oss-120b",  # النموذج الأسطوري الجديد الخارق
+  # أسرع وأقوى محرك متاح حالياً على Groq
         "messages": [
             {"role": "system", "content": system_persona},
             {"role": "user", "content": user_payload}
