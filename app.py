@@ -117,8 +117,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
         code_content = f.read()
 
-        if query.data == "ai_deep_fix":
-        # تعديل Message لكي تدرك أن السيرفر شغال ولا يعلق صامتاً
+if query.data == "ai_deep_fix":
         status_msg = await query.message.reply_text("🧠 **جاري استدعاء عقل GPT-OSS 120B المظلم... قد يستغرق التفكير عدة ثوانٍ** ⏳🔥", parse_mode="Markdown")
         
         prompt = "قم بتحليل هذا الكود بعمق، اكشف أي أكواد وهمية أو مزيفة (Fake Logic)، وأعد كتابته وتطويره ليصبح كوداً حقيقياً، نظيفاً، وفعالاً 100% مع الحفاظ على الفكرة الأساسية."
