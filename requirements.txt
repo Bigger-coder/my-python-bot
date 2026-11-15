@@ -1,4 +1,7 @@
-python-telegram-bot==20.7
-autopep8
-autoflake
-requests
+aiogram>=3.13
+python-dotenv
+aiosqlite
+openai
+feedparser
+ddgs
+yt-dlp
